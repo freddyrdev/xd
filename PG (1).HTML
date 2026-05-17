@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Financiero PRO</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #f4f6f9;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 220px;
+    height: 100vh;
+    background: #1e40af;
+    color: white;
+    position: fixed;
+    padding: 20px;
+}
+
+/* MAIN */
+.main {
+    margin-left: 240px;
+    padding: 20px;
+}
+
+/* BOTÓN */
+.btn {
+    background: #22c55e;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    float: right;
+    cursor: pointer;
+}
+
+/* CARDS */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.card {
+    padding: 20px;
+    border-radius: 12px;
+    color: white;
+}
+
+.green { background: #16a34a; }
+.red { background: #dc2626; }
+.blue { background: #2563eb; }
+
+/* GRID */
+.grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.box {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+}
+
+/* TABLA */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+td, th {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+/* RECOMENDACIONES */
+.recom {
+    margin-top: 10px;
+    padding: 10px;
+    border-left: 5px solid green;
+    background: #ecfdf5;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>📊 Finanzas PRO</h2>
+    <p>Dashboard</p>
+    <p>Reportes</p>
+</div>
+
+<div class="main">
+
+<h1>Dashboard Financiero</h1>
+
+<input type="file" id="archivo1">
+<input type="file" id="archivo2">
+<button class="btn" onclick="comparar()">Comparar</button>
+
+<!-- CARDS -->
+<div class="cards">
+    <div class="card green">
+        <h3>Ingresos</h3>
+        <h1 id="ingresos">$0</h1>
+        <p id="varIng"></p>
+    </div>
+
+    <div class="card red">
+        <h3>Gastos</h3>
+        <h1 id="gastos">$0</h1>
+        <p id="varGas"></p>
+    </div>
+
+    <div class="card blue">
+        <h3>Utilidad</h3>
+        <h1 id="utilidad">$0</h1>
+        <p id="varUti"></p>
+    </div>
+</div>
+
+<!-- GRÁFICAS -->
+<div class="grid">
+    <div class="box">
+        <h3>Comparación</h3>
+        <canvas id="barChart"></canvas>
+    </div>
+
+    <div class="box">
+        <h3>Distribución de Gastos</h3>
+        <canvas id="pieChart"></canvas>
+    </div>
+</div>
+
+<!-- INDICADORES -->
+<div class="box">
+    <h3>Indicadores</h3>
+    <table>
+        <tr><th>Indicador</th><th>Valor</th></tr>
+        <tr><td>Rentabilidad</td><td id="rent"></td></tr>
+        <tr><td>Margen Neto</td><td id="margen"></td></tr>
+    </table>
+</div>
+
+<!-- RECOMENDACIONES -->
+<div class="box">
+    <h3>Recomendaciones</h3>
+    <div id="recom"></div>
+</div>
+
+</div>
+
+<script>
+
+function leerExcel(file, callback){
+    const reader = new FileReader();
+
+    reader.onload = e => {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+
+        let ingresos=0, gastos=0;
+
+        json.forEach(f=>{
+            ingresos += f.Ingresos || 0;
+            gastos += f.Gastos || 0;
+        });
+
+        callback({ingresos, gastos, utilidad: ingresos-gastos});
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+function comparar(){
+    const f1 = document.getElementById("archivo1").files[0];
+    const f2 = document.getElementById("archivo2").files[0];
+
+    if(!f1 || !f2){
+        alert("Sube ambos archivos");
+        return;
+    }
+
+    leerExcel(f1, d1=>{
+        leerExcel(f2, d2=>{
+
+            // TARJETAS
+            document.getElementById("ingresos").innerText="$"+d1.ingresos;
+            document.getElementById("gastos").innerText="$"+d1.gastos;
+            document.getElementById("utilidad").innerText="$"+d1.utilidad;
+
+            // VARIACIONES
+            const calcVar=(a,b)=>(((a-b)/b)*100).toFixed(1);
+
+            document.getElementById("varIng").innerText=calcVar(d1.ingresos,d2.ingresos)+"% vs archivo 2";
+            document.getElementById("varGas").innerText=calcVar(d1.gastos,d2.gastos)+"% vs archivo 2";
+            document.getElementById("varUti").innerText=calcVar(d1.utilidad,d2.utilidad)+"% vs archivo 2";
+
+            // GRÁFICA BARRAS
+            new Chart(document.getElementById("barChart"),{
+                type:"bar",
+                data:{
+                    labels:["Ingresos","Gastos","Utilidad"],
+                    datasets:[
+                        {label:"Archivo 1",data:[d1.ingresos,d1.gastos,d1.utilidad]},
+                        {label:"Archivo 2",data:[d2.ingresos,d2.gastos,d2.utilidad]}
+                    ]
+                }
+            });
+
+            // GRÁFICA PIE (simulada)
+            new Chart(document.getElementById("pieChart"),{
+                type:"pie",
+                data:{
+                    labels:["Operativos","Ventas","Admin"],
+                    datasets:[{
+                        data:[
+                            d1.gastos*0.4,
+                            d1.gastos*0.3,
+                            d1.gastos*0.3
+                        ]
+                    }]
+                }
+            });
+
+            // INDICADORES
+            const rent = (d1.utilidad/d1.ingresos*100).toFixed(1);
+            const margen = (d1.utilidad/d1.gastos*100).toFixed(1);
+
+            document.getElementById("rent").innerText=rent+"%";
+            document.getElementById("margen").innerText=margen+"%";
+
+            // RECOMENDACIONES IA
+            let rec="";
+
+            if(rent < 20){
+                rec += "<div class='recom'>📈 Incrementar ingresos</div>";
+            }
+
+            if(d1.gastos > d1.ingresos*0.7){
+                rec += "<div class='recom'>💸 Reducir gastos</div>";
+            }
+
+            if(d1.utilidad > d2.utilidad){
+                rec += "<div class='recom'>✅ Buen rendimiento</div>";
+            }
+
+            document.getElementById("recom").innerHTML=rec;
+
+        });
+    });
+}
+
+</script>
+
+</body>
+</html>
